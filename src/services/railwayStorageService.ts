@@ -46,14 +46,20 @@ export class RailwayStorageService {
       formData.append('type', type);
       formData.append('base64Data', base64Data);
       
-      // Upload to Railway
+      console.log('Uploading to Railway:', `${this.RAILWAY_BASE_URL}/api/upload`);
+      
+      // Upload to Railway with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(`${this.RAILWAY_BASE_URL}/api/upload`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        signal: controller.signal,
+        // Don't set Content-Type header, let fetch set it automatically for FormData
       });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Upload failed: ${response.statusText}`);
@@ -72,10 +78,65 @@ export class RailwayStorageService {
       }
     } catch (error) {
       console.error('Error uploading to Railway:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      
+      // Try alternative upload method using base64 directly
+      try {
+        console.log('Trying alternative upload method...');
+        const alternativeResult = await this.uploadImageBase64(base64Data, clientId, type, finalFileName);
+        return alternativeResult;
+      } catch (altError) {
+        console.error('Alternative upload also failed:', altError);
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    }
+  }
+  
+  /**
+   * Alternative upload method using base64 directly
+   */
+  private static async uploadImageBase64(
+    base64Data: string,
+    clientId: string,
+    type: 'weight' | 'progress' | 'client',
+    fileName: string
+  ): Promise<RailwayUploadResponse> {
+    try {
+      console.log('Using base64 upload method...');
+      
+      const response = await fetch(`${this.RAILWAY_BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          base64Data,
+          clientId,
+          type,
+          fileName,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Base64 upload successful:', result.url);
+        return {
+          success: true,
+          url: result.url,
+        };
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Base64 upload failed:', error);
+      throw error;
     }
   }
   

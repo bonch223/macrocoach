@@ -48,16 +48,70 @@ app.get('/health', (req, res) => {
 });
 
 // Upload image endpoint
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No file uploaded' 
-      });
-    }
+    // Check if it's a base64 upload (JSON) or file upload (multipart)
+    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+      // Handle base64 upload
+      const { base64Data, clientId, type, fileName } = req.body;
+      
+      if (!base64Data || !clientId || !type) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing base64Data, clientId, or type' 
+        });
+      }
 
-    const { clientId, type, base64Data } = req.body;
+      // Process base64 image
+      const processedImagePath = path.join(uploadsDir, fileName || `base64-${Date.now()}.jpg`);
+      
+      // Convert base64 to buffer and process with Sharp
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      
+      await sharp(imageBuffer)
+        .resize(400, 400, { 
+          fit: 'inside',
+          withoutEnlargement: true 
+        })
+        .jpeg({ quality: 80 })
+        .toFile(processedImagePath);
+
+      // Generate public URL
+      const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN || `http://localhost:${PORT}`;
+      const imageUrl = `${baseUrl}/${path.basename(processedImagePath)}`;
+
+      console.log('Base64 image uploaded successfully:', {
+        clientId,
+        type,
+        filename: path.basename(processedImagePath),
+        url: imageUrl
+      });
+
+      res.json({
+        success: true,
+        url: imageUrl,
+        filename: path.basename(processedImagePath),
+        size: imageBuffer.length
+      });
+
+    } else {
+      // Handle file upload (multipart)
+      upload.single('file')(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'File upload error: ' + err.message 
+          });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'No file uploaded' 
+          });
+        }
+
+        const { clientId, type, base64Data } = req.body;
     
     if (!clientId || !type) {
       return res.status(400).json({ 

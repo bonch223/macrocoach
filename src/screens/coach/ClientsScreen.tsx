@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Header } from '../../components/Header';
 import { FirestoreService } from '../../services/firestoreService';
-import { HybridPhotoService } from '../../services/hybridPhotoService';
+import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
 import { Client } from '../../types';
 
 interface ClientsScreenProps {
@@ -148,17 +148,17 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
     try {
       setUploadingPhoto(true);
       
-      // Upload photo using hybrid storage (local + Railway)
-      const photoId = await HybridPhotoService.uploadPhoto(
+      // Upload photo using hybrid storage (local + ImgBB)
+      const photoId = await HybridLocalImgBBService.uploadPhoto(
         uri,
         client.id,
         'client'
       );
       
-      // Get the display URI (local or Railway fallback)
-      const displayUri = await HybridPhotoService.getPhoto(photoId);
+      // Get the display URI (local or ImgBB fallback)
+      const displayUri = await HybridLocalImgBBService.getPhoto(photoId);
       
-      // Update client's photoUri in database with the display URI
+      // Update client's photoUri in database
       await FirestoreService.updateClient(client.id, {
         photoUri: displayUri || undefined
       });
