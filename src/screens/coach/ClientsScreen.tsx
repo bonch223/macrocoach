@@ -18,6 +18,7 @@ import { Header } from '../../components/Header';
 import { FirestoreService } from '../../services/firestoreService';
 import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
 import { SimpleImgBBService } from '../../services/simpleImgBBService';
+import { StandalonePhotoService } from '../../services/standalonePhotoService';
 import { Client } from '../../types';
 
 interface ClientsScreenProps {
@@ -152,24 +153,36 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
       let displayUri: string | null = null;
       
       try {
-        // Try hybrid storage first (local + ImgBB + Firestore metadata)
-        const photoId = await HybridLocalImgBBService.uploadPhoto(
+        // Use standalone service first (no Firestore dependencies)
+        displayUri = await StandalonePhotoService.uploadPhoto(
           uri,
           client.id,
           'client'
         );
+        console.log('Standalone photo upload successful');
+      } catch (standaloneError) {
+        console.warn('Standalone upload failed, trying hybrid:', standaloneError);
         
-        // Get the display URI (local or ImgBB fallback)
-        displayUri = await HybridLocalImgBBService.getPhoto(photoId);
-      } catch (hybridError) {
-        console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
-        
-        // Fallback to simple ImgBB service (no Firestore metadata)
-        displayUri = await SimpleImgBBService.uploadPhoto(
-          uri,
-          client.id,
-          'client'
-        );
+        try {
+          // Fallback to hybrid storage (local + ImgBB + Firestore metadata)
+          const photoId = await HybridLocalImgBBService.uploadPhoto(
+            uri,
+            client.id,
+            'client'
+          );
+          
+          // Get the display URI (local or ImgBB fallback)
+          displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+        } catch (hybridError) {
+          console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
+          
+          // Final fallback to simple ImgBB service (no Firestore metadata)
+          displayUri = await SimpleImgBBService.uploadPhoto(
+            uri,
+            client.id,
+            'client'
+          );
+        }
       }
       
       if (displayUri) {
