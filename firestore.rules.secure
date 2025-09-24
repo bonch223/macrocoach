@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Clients - simplified rules
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Foods - readable by all authenticated users
+    match /foods/{foodId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Logs - simplified rules
+    match /logs/{logId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Weight entries - simplified rules
+    match /weightEntries/{entryId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Progress photos - simplified rules
+    match /progressPhotos/{photoId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Photo metadata - for hybrid photo storage system
+    match /photoMetadata/{photoId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
