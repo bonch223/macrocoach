@@ -14,8 +14,8 @@ export interface RailwayDownloadResponse {
 }
 
 export class RailwayStorageService {
-  // Replace with your actual Railway app URL
-  private static readonly RAILWAY_BASE_URL = 'https://YOUR-APP-NAME.up.railway.app';
+  // Railway production URL
+  private static readonly RAILWAY_BASE_URL = 'https://macrocoach-production.up.railway.app';
   
   /**
    * Upload image to Railway storage
