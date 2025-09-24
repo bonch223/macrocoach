@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { firestoreService } from '../../services/firestoreService';
 import { ClientQuestionnaire } from '../../types';
+import { shadowPresets } from '../../utils/shadowStyles';
 
 // Use the ClientQuestionnaire type from types/index.ts
 type ClientQuestionnaireData = ClientQuestionnaire;
@@ -532,11 +533,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...shadowPresets.card,
   },
   clientInfoHeader: {
     flexDirection: 'row',
@@ -572,11 +569,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...shadowPresets.card,
   },
   sectionHeader: {
     flexDirection: 'row',

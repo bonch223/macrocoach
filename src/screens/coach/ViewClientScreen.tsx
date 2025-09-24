@@ -17,7 +17,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Header } from '../../components/Header';
 import { DateInput } from '../../components/DateInput';
 import { FirestoreService } from '../../services/firestoreService';
-import { PhotoSyncService } from '../../services/photoSyncService';
+import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
 import { WeightLogsScreen } from './WeightLogsScreen';
 
 
@@ -130,16 +130,11 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
     try {
       setLoading(true);
       
-      // Convert client profile photo to data URI if it exists
+      // Handle client profile photo - should use ImgBB URL for web
       if (clientData.photoUri && clientData.photoUri.startsWith('file://')) {
-        try {
-          // Check if this is a local file URI that needs conversion
-          const base64Data = await PhotoSyncService.imageToBase64(clientData.photoUri);
-          clientData.photoUri = `data:image/jpeg;base64,${base64Data}`;
-        } catch (error) {
-          console.error('Error converting client profile photo:', error);
-          // Keep the original URI if conversion fails
-        }
+        console.log('Local file URI detected, should use ImgBB fallback for web');
+        // For web, we should have ImgBB URLs stored in the database
+        // This local file URI won't work on web, so we'll fall back to initials
       }
       
       // Load weight entries
@@ -150,13 +145,10 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
         weightData.map(async (entry: any) => {
           if (entry.photoId) {
             try {
-              const photoUri = await PhotoSyncService.getPhotoById(entry.photoId);
+              // Use hybrid service to get photo (local or ImgBB)
+              const photoUri = await HybridLocalImgBBService.getPhoto(entry.photoId);
               if (photoUri) {
-                // Convert base64 to data URI for display
-                const base64Data = await PhotoSyncService.getBase64Data(entry.photoId);
-                if (base64Data) {
-                  entry.photoUri = `data:image/jpeg;base64,${base64Data}`;
-                }
+                entry.photoUri = photoUri;
               }
             } catch (error) {
               console.error('Error loading photo for weight entry:', error);
@@ -327,22 +319,21 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       // Compress the image
       const compressedUri = await compressImage(uri);
       
-      // Save photo to Firestore using base64 storage
-      const photoId = await PhotoSyncService.savePhotoToFirestore(
+      // Save photo using hybrid service (local + ImgBB)
+      const photoId = await HybridLocalImgBBService.uploadPhoto(
         compressedUri,
         clientData.id,
         'progress',
-        date,
         notes
       );
       
-      // Get the local URI for immediate display
-      const localUri = await PhotoSyncService.getPhotoById(photoId);
+      // Get the display URI (local or ImgBB)
+      const displayUri = await HybridLocalImgBBService.getPhoto(photoId);
       
-      // Add progress photo to database with local URI
+      // Add progress photo to database with display URI
       await FirestoreService.addProgressPhoto(
         clientData.id,
-        localUri,
+        displayUri,
         notes,
         date
       );
@@ -533,19 +524,18 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
           const compressedUri = await compressImage(newWeightPhotoUri);
           console.log('Image compressed successfully:', compressedUri);
           
-          // Save photo to Firestore using base64 storage (works across devices)
+          // Save photo using hybrid service (local + ImgBB)
           try {
-            const photoId = await PhotoSyncService.savePhotoToFirestore(
+            const photoId = await HybridLocalImgBBService.uploadPhoto(
               compressedUri,
               clientData.id,
               'weight',
-              newWeightDate,
               newWeightNotes.trim() || undefined
             );
             
-            // Get the local URI for immediate display
-            photoUri = await PhotoSyncService.getPhotoById(photoId);
-            console.log('Photo saved to Firestore successfully:', photoId);
+            // Get the display URI (local or ImgBB)
+            photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+            console.log('Photo saved successfully:', photoId);
             
           } catch (photoError) {
             console.error('Photo storage failed:', photoError);

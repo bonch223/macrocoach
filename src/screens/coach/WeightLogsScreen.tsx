@@ -19,7 +19,7 @@ import { Header } from '../../components/Header';
 import { DateInput } from '../../components/DateInput';
 import { WeightChart } from '../../components/WeightChart';
 import { FirestoreService } from '../../services/firestoreService';
-import { PhotoSyncService } from '../../services/photoSyncService';
+import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
 
 interface WeightLogsScreenProps {
   clientData: {
@@ -206,13 +206,12 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
       let photoUri = undefined;
       if (newWeightPhoto) {
         const compressedPhotoUri = await compressImage(newWeightPhoto);
-        const photoId = await PhotoSyncService.savePhotoToFirestore(
+        const photoId = await HybridLocalImgBBService.uploadPhoto(
           compressedPhotoUri,
           clientData.id,
-          'weight',
-          newWeightDate
+          'weight'
         );
-        photoUri = await PhotoSyncService.getPhotoById(photoId);
+        photoUri = await HybridLocalImgBBService.getPhoto(photoId);
       }
       
       await FirestoreService.addWeightEntry(
@@ -273,13 +272,12 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
       let photoUri = undefined;
       if (editWeightPhoto) {
         const compressedPhotoUri = await compressImage(editWeightPhoto);
-        const photoId = await PhotoSyncService.savePhotoToFirestore(
+        const photoId = await HybridLocalImgBBService.uploadPhoto(
           compressedPhotoUri,
           clientData.id,
-          'weight',
-          newWeightDate
+          'weight'
         );
-        photoUri = await PhotoSyncService.getPhotoById(photoId);
+        photoUri = await HybridLocalImgBBService.getPhoto(photoId);
       }
       
       await FirestoreService.updateWeightEntry(
