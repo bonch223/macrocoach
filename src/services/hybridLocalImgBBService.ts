@@ -57,7 +57,15 @@ export class HybridLocalImgBBService {
         timestamp: new Date(),
       };
       
-      await FirestoreService.addPhotoMetadata(photoMetadata);
+      // Save metadata to Firestore (with error handling)
+      try {
+        await FirestoreService.addPhotoMetadata(photoMetadata);
+        console.log('Photo metadata saved to Firestore');
+      } catch (firestoreError) {
+        console.warn('Failed to save metadata to Firestore:', firestoreError);
+        console.log('Photo saved locally and to ImgBB, but metadata not synced');
+        // Continue without Firestore metadata - local and ImgBB storage still work
+      }
       
       console.log('Photo upload completed:', photoMetadata.id);
       return photoMetadata.id;
@@ -74,10 +82,17 @@ export class HybridLocalImgBBService {
     try {
       console.log('Getting photo:', photoId);
       
-      // 1. Get photo metadata from Firestore
-      const metadata = await FirestoreService.getPhotoMetadata(photoId);
+      // 1. Get photo metadata from Firestore (with error handling)
+      let metadata = null;
+      try {
+        metadata = await FirestoreService.getPhotoMetadata(photoId);
+      } catch (firestoreError) {
+        console.warn('Failed to get metadata from Firestore:', firestoreError);
+        console.log('Continuing without Firestore metadata');
+      }
+      
       if (!metadata) {
-        console.log('Photo metadata not found');
+        console.log('Photo metadata not found in Firestore');
         return null;
       }
       

@@ -17,6 +17,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Header } from '../../components/Header';
 import { FirestoreService } from '../../services/firestoreService';
 import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
+import { SimpleImgBBService } from '../../services/simpleImgBBService';
 import { Client } from '../../types';
 
 interface ClientsScreenProps {
@@ -148,25 +149,42 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
     try {
       setUploadingPhoto(true);
       
-      // Upload photo using hybrid storage (local + ImgBB)
-      const photoId = await HybridLocalImgBBService.uploadPhoto(
-        uri,
-        client.id,
-        'client'
-      );
+      let displayUri: string | null = null;
       
-      // Get the display URI (local or ImgBB fallback)
-      const displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+      try {
+        // Try hybrid storage first (local + ImgBB + Firestore metadata)
+        const photoId = await HybridLocalImgBBService.uploadPhoto(
+          uri,
+          client.id,
+          'client'
+        );
+        
+        // Get the display URI (local or ImgBB fallback)
+        displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+      } catch (hybridError) {
+        console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
+        
+        // Fallback to simple ImgBB service (no Firestore metadata)
+        displayUri = await SimpleImgBBService.uploadPhoto(
+          uri,
+          client.id,
+          'client'
+        );
+      }
       
-      // Update client's photoUri in database
-      await FirestoreService.updateClient(client.id, {
-        photoUri: displayUri || undefined
-      });
-      
-      // Update local state
-      await loadClients();
-      
-      Alert.alert('Success', 'Photo uploaded successfully!');
+      if (displayUri) {
+        // Update client's photoUri in database
+        await FirestoreService.updateClient(client.id, {
+          photoUri: displayUri
+        });
+        
+        // Update local state
+        await loadClients();
+        
+        Alert.alert('Success', 'Photo uploaded successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to upload photo');
+      }
     } catch (error) {
       console.error('Error uploading photo:', error);
       Alert.alert('Error', 'Failed to upload photo');
