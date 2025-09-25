@@ -12,6 +12,7 @@ import { ViewClientScreen } from './src/screens/coach/ViewClientScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
 import SplashScreen from './src/components/SplashScreen';
 import { FirestoreService } from './src/services/firestoreService';
+import { AuthService } from './src/services/authService';
 import { Client } from './src/types';
 
 type Screen = 
@@ -35,8 +36,21 @@ export default function App() {
         // Simulate loading time for splash screen
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Initialize any required services here
-        // For example: await FirestoreService.initialize();
+        // Initialize authentication with a default coach user
+        try {
+          // Try to sign in with a default coach account
+          await AuthService.signIn('coach@macrocoach.com', 'coach123');
+          console.log('Signed in as default coach');
+        } catch (authError) {
+          // If sign in fails, try to register the default coach
+          try {
+            await AuthService.register('coach@macrocoach.com', 'coach123', 'Default Coach', 'coach');
+            console.log('Registered default coach');
+          } catch (registerError) {
+            console.warn('Could not authenticate:', registerError);
+            // Continue without authentication for now
+          }
+        }
         
         setIsAppReady(true);
       } catch (error) {
