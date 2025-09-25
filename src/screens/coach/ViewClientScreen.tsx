@@ -18,6 +18,8 @@ import { Header } from '../../components/Header';
 import { DateInput } from '../../components/DateInput';
 import { FirestoreService } from '../../services/firestoreService';
 import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
+import { StandalonePhotoService } from '../../services/standalonePhotoService';
+import { SimpleImgBBService } from '../../services/simpleImgBBService';
 import { WeightLogsScreen } from './WeightLogsScreen';
 
 
