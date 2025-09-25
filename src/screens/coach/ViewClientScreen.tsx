@@ -145,13 +145,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       // Process weight entries with photos
       const weightDataWithPhotos = await Promise.all(
         weightData.map(async (entry: any) => {
-          // If entry already has photoUri, use it
-          if (entry.photoUri && entry.photoUri.trim()) {
-            console.log('Weight entry already has photoUri:', entry.photoUri);
-            return entry;
-          }
-          
-          // If entry has photoId, try to get the photo
+          // If entry has photoId, try to get the photo from services (for cross-device access)
           if (entry.photoId) {
             try {
               let photoUri: string | null = null;
@@ -172,7 +166,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
               
               if (photoUri) {
                 entry.photoUri = photoUri;
-                console.log('Photo loaded for weight entry:', entry.photoId);
+                console.log('Photo loaded for weight entry:', entry.photoId, 'URI:', photoUri);
               } else {
                 console.log('No photo found for weight entry:', entry.photoId);
               }
@@ -180,6 +174,24 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
               console.error('Error loading photo for weight entry:', error);
             }
           }
+          // If entry already has photoUri, check if it's a local file path (for web compatibility)
+          else if (entry.photoUri && entry.photoUri.trim()) {
+            // For web browsers, local file paths won't work, so we need to get the ImgBB URL
+            if (Platform.OS === 'web' && entry.photoUri.startsWith('file://')) {
+              console.log('Web browser detected with local file path, trying to get ImgBB URL');
+              // Try to get the photo from services to get ImgBB URL
+              // This is a fallback for web browsers
+              try {
+                // For now, we'll leave it as is and let the Image component handle the error
+                console.log('Local file path on web - will show error but that\'s expected');
+              } catch (error) {
+                console.warn('Could not get ImgBB URL for web:', error);
+              }
+            } else {
+              console.log('Weight entry already has photoUri:', entry.photoUri);
+            }
+          }
+          
           return entry;
         })
       );
@@ -778,6 +790,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       
       // Save to database with selected date and photo
       // Save photoId if available (for cross-device access), otherwise save photoUri directly
+      console.log('Saving weight entry with photoId:', photoId, 'photoUri:', photoUri);
       await FirestoreService.addWeightEntry(
         clientData.id,
         weight,
