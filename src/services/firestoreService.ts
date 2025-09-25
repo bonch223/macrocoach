@@ -270,7 +270,7 @@ export class FirestoreService {
   }
 
   // Weight Tracking
-  static async addWeightEntry(clientId: string, weight: number, notes?: string, photoUri?: string, date?: Date): Promise<string> {
+  static async addWeightEntry(clientId: string, weight: number, notes?: string, photoId?: string, date?: Date): Promise<string> {
     try {
       const timestamp = date ? Timestamp.fromDate(date) : Timestamp.now();
       
@@ -278,7 +278,7 @@ export class FirestoreService {
         clientId,
         weight,
         notes: notes || '',
-        photoUri: photoUri || '',
+        photoId: photoId || '',
         date: timestamp,
         createdAt: Timestamp.now()
       });
@@ -288,7 +288,7 @@ export class FirestoreService {
     }
   }
 
-  static async updateWeightEntry(entryId: string, weight: number, notes?: string, date?: Date, photoUri?: string): Promise<void> {
+  static async updateWeightEntry(entryId: string, weight: number, notes?: string, date?: Date, photoId?: string): Promise<void> {
     try {
       const docRef = doc(db, 'weightEntries', entryId);
       const updateData: any = {
@@ -298,8 +298,8 @@ export class FirestoreService {
         updatedAt: Timestamp.now()
       };
       
-      if (photoUri !== undefined) {
-        updateData.photoUri = photoUri || '';
+      if (photoId !== undefined) {
+        updateData.photoId = photoId || '';
       }
       
       await updateDoc(docRef, updateData);
@@ -441,46 +441,7 @@ export class FirestoreService {
     }
   }
 
-  // Photo Management (Base64 storage)
-  static async addPhoto(photoData: any): Promise<string> {
-    try {
-      const docRef = await addDoc(collection(db, 'photos'), {
-        ...photoData,
-        createdAt: Timestamp.now()
-      });
-      return docRef.id;
-    } catch (error) {
-      throw new Error(`Failed to add photo: ${error}`);
-    }
-  }
-
-  static async getClientPhotos(clientId: string, type?: string): Promise<any[]> {
-    try {
-      let q;
-      if (type) {
-        q = query(
-          collection(db, 'photos'),
-          where('clientId', '==', clientId),
-          where('type', '==', type),
-          orderBy('date', 'desc')
-        );
-      } else {
-        q = query(
-          collection(db, 'photos'),
-          where('clientId', '==', clientId),
-          orderBy('date', 'desc')
-        );
-      }
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-    } catch (error) {
-      throw new Error(`Failed to get client photos: ${error}`);
-    }
-  }
+  // Photo Management (Metadata only - no base64 storage)
 
   static async deleteClient(clientId: string): Promise<void> {
     try {
@@ -492,37 +453,14 @@ export class FirestoreService {
     }
   }
 
-  static async getPhotoById(photoId: string): Promise<any> {
-    try {
-      const docRef = doc(db, 'photos', photoId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() };
-      } else {
-        return null;
-      }
-    } catch (error) {
-      throw new Error(`Failed to get photo: ${error}`);
-    }
-  }
-
-  static async deletePhoto(photoId: string): Promise<void> {
-    try {
-      const docRef = doc(db, 'photos', photoId);
-      await deleteDoc(docRef);
-    } catch (error) {
-      throw new Error(`Failed to delete photo: ${error}`);
-    }
-  }
 
   // Photo metadata methods for hybrid storage
   static async addPhotoMetadata(metadata: any): Promise<string> {
     try {
       const docRef = await addDoc(collection(db, 'photoMetadata'), {
         ...metadata,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       });
       return docRef.id;
     } catch (error) {

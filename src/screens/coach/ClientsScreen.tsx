@@ -16,9 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Header } from '../../components/Header';
 import { FirestoreService } from '../../services/firestoreService';
-import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
-import { SimpleImgBBService } from '../../services/simpleImgBBService';
-import { StandalonePhotoService } from '../../services/standalonePhotoService';
+import { UnifiedPhotoService } from '../../services/unifiedPhotoService';
 import { Client } from '../../types';
 
 interface ClientsScreenProps {
@@ -70,9 +68,9 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
     try {
       const manipResult = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 400, height: 400 } }], // Resize to max 400x400
+        [{ resize: { width: 300, height: 300 } }], // Smaller size for better compression
         { 
-          compress: 0.7, // 70% quality
+          compress: 0.5, // 50% quality for smaller file size
           format: ImageManipulator.SaveFormat.JPEG 
         }
       );
@@ -154,40 +152,15 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
     try {
       setUploadingPhoto(true);
       
-      let displayUri: string | null = null;
+      // Upload photo using unified service
+      const photoId = await UnifiedPhotoService.uploadPhoto(
+        uri,
+        client.id,
+        'client'
+      );
       
-      try {
-        // Use standalone service first (no Firestore dependencies)
-        displayUri = await StandalonePhotoService.uploadPhoto(
-          uri,
-          client.id,
-          'client'
-        );
-        console.log('Standalone photo upload successful');
-      } catch (standaloneError) {
-        console.warn('Standalone upload failed, trying hybrid:', standaloneError);
-        
-        try {
-          // Fallback to hybrid storage (local + ImgBB + Firestore metadata)
-          const photoId = await HybridLocalImgBBService.uploadPhoto(
-            uri,
-            client.id,
-            'client'
-          );
-          
-          // Get the display URI (local or ImgBB fallback)
-          displayUri = await HybridLocalImgBBService.getPhoto(photoId);
-        } catch (hybridError) {
-          console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
-          
-          // Final fallback to simple ImgBB service (no Firestore metadata)
-          displayUri = await SimpleImgBBService.uploadPhoto(
-            uri,
-            client.id,
-            'client'
-          );
-        }
-      }
+      // Get the display URI
+      const displayUri = await UnifiedPhotoService.getPhoto(photoId);
       
       if (displayUri) {
         // Update client's photoUri in database

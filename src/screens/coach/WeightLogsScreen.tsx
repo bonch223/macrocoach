@@ -19,7 +19,7 @@ import { Header } from '../../components/Header';
 import { DateInput } from '../../components/DateInput';
 import { WeightChart } from '../../components/WeightChart';
 import { FirestoreService } from '../../services/firestoreService';
-import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
+import { UnifiedPhotoService } from '../../services/unifiedPhotoService';
 
 interface WeightLogsScreenProps {
   clientData: {
@@ -87,13 +87,13 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
     loadWeightEntries();
   }, [clientData.id]);
 
-  // Image compression helper
+  // Image compression helper with aggressive optimization
   const compressImage = async (uri: string): Promise<string> => {
     try {
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        [{ resize: { width: 300, height: 300 } }], // Smaller size for better compression
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG } // 50% quality for smaller file size
       );
       return result.uri;
     } catch (error) {
@@ -206,12 +206,12 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
       let photoUri = undefined;
       if (newWeightPhoto) {
         const compressedPhotoUri = await compressImage(newWeightPhoto);
-        const photoId = await HybridLocalImgBBService.uploadPhoto(
+        const photoId = await UnifiedPhotoService.uploadPhoto(
           compressedPhotoUri,
           clientData.id,
           'weight'
         );
-        photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+        photoUri = await UnifiedPhotoService.getPhoto(photoId);
       }
       
       await FirestoreService.addWeightEntry(
@@ -269,15 +269,14 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
       setLoading(true);
       
       // Upload photo to Firebase Storage if provided
-      let photoUri = undefined;
+      let photoId = undefined;
       if (editWeightPhoto) {
         const compressedPhotoUri = await compressImage(editWeightPhoto);
-        const photoId = await HybridLocalImgBBService.uploadPhoto(
+        photoId = await UnifiedPhotoService.uploadPhoto(
           compressedPhotoUri,
           clientData.id,
           'weight'
         );
-        photoUri = await HybridLocalImgBBService.getPhoto(photoId);
       }
       
       await FirestoreService.updateWeightEntry(
@@ -285,7 +284,7 @@ export const WeightLogsScreen: React.FC<WeightLogsScreenProps> = ({
         weight,
         newWeightNotes.trim() || undefined,
         newWeightDate,
-        photoUri
+        photoId
       );
       
       await loadWeightEntries();
