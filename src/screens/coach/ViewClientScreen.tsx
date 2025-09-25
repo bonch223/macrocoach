@@ -1453,17 +1453,27 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
   );
 
   const renderPhotoComparison = () => {
+    // Debug: Log weight entries to see what we have
+    console.log('Weight entries for Photos tab:', weightEntries.map(entry => ({
+      id: entry.id,
+      photoUri: entry.photoUri,
+      photoId: entry.photoId,
+      weight: entry.weight
+    })));
+    
     // Get only weight entry photos, sorted by date (oldest first)
     const weightPhotos = weightEntries
-      .filter(entry => entry.photoUri)
+      .filter(entry => entry.photoUri || entry.photoId) // Support both photoUri and photoId
       .map(entry => ({ 
         id: entry.id, 
-        photoUri: entry.photoUri, 
+        photoUri: entry.photoUri, // This will be set by the loadClientData function
         date: entry.date, 
         weight: entry.weight,
         notes: entry.notes
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort oldest first
+    
+    console.log('Filtered weight photos:', weightPhotos.length);
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
