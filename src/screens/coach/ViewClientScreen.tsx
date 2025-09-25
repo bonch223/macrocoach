@@ -710,42 +710,66 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
           
           // Save photo using standalone service with fallbacks
           try {
+            let photoId: string | null = null;
             let photoUri: string | null = null;
             
             try {
-              photoUri = await StandalonePhotoService.uploadPhoto(
+              photoId = await StandalonePhotoService.uploadPhoto(
                 compressedUri,
                 clientData.id,
                 'weight',
                 newWeightNotes.trim() || undefined
               );
-              console.log('Standalone photo upload successful');
+              console.log('Standalone photo upload successful, photoId:', photoId);
             } catch (standaloneError) {
               console.warn('Standalone upload failed, trying hybrid:', standaloneError);
               
               try {
-                const photoId = await HybridLocalImgBBService.uploadPhoto(
+                photoId = await HybridLocalImgBBService.uploadPhoto(
                   compressedUri,
                   clientData.id,
                   'weight',
                   newWeightNotes.trim() || undefined
                 );
-                
-                photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+                console.log('Hybrid photo upload successful, photoId:', photoId);
               } catch (hybridError) {
                 console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
                 
+                // For SimpleImgBBService, we get the URI directly
                 photoUri = await SimpleImgBBService.uploadPhoto(
                   compressedUri,
                   clientData.id,
                   'weight',
                   newWeightNotes.trim() || undefined
                 );
+                
+                if (photoUri) {
+                  console.log('SimpleImgBB photo upload successful, URI:', photoUri);
+                } else {
+                  throw new Error('SimpleImgBB upload failed');
+                }
               }
             }
             
-            if (photoUri) {
-              console.log('Photo saved successfully with URI:', photoUri);
+            if (photoId || photoUri) {
+              console.log('Photo saved successfully:', { photoId, photoUri });
+              
+              // If we have photoId but no photoUri, get the photoUri from the service
+              if (photoId && !photoUri) {
+                try {
+                  // Try to get photoUri from the service that uploaded it
+                  if (photoId.includes('photo_')) {
+                    // Standalone service photoId format
+                    photoUri = await StandalonePhotoService.getPhoto(photoId);
+                  } else {
+                    // Hybrid service photoId format
+                    photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+                  }
+                  console.log('Retrieved photoUri from service:', photoUri);
+                } catch (error) {
+                  console.warn('Failed to get photoUri from service:', error);
+                }
+              }
             } else {
               throw new Error('All photo upload methods failed');
             }
@@ -765,7 +789,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
         clientData.id,
         weight,
         newWeightNotes.trim() || undefined,
-        photoUri,
+        photoUri, // Use the photoUri (either from SimpleImgBB or retrieved from services)
         newWeightDate
       );
       
