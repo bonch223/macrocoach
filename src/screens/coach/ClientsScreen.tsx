@@ -16,7 +16,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Header } from '../../components/Header';
 import { FirestoreService } from '../../services/firestoreService';
-import { AuthService } from '../../services/authService';
 import { HybridLocalImgBBService } from '../../services/hybridLocalImgBBService';
 import { SimpleImgBBService } from '../../services/simpleImgBBService';
 import { StandalonePhotoService } from '../../services/standalonePhotoService';
@@ -48,9 +47,8 @@ export const ClientsScreen: React.FC<ClientsScreenProps> = ({
     try {
       setLoading(true);
       
-      // Get the current authenticated user
-      const currentUser = await AuthService.getCurrentUser();
-      const coachId = currentUser?.id || 'coach-1'; // Fallback to 'coach-1' if no user
+      // Since this is a coach-only app, use a fixed coach ID
+      const coachId = 'coach-1';
       
       const clientsData = await FirestoreService.getClientsByCoach(coachId);
       setClients(clientsData);
