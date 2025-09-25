@@ -699,9 +699,9 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
     try {
       setLoading(true);
       
+      // Handle photo upload if a new one is selected
       let photoUri: string | undefined = undefined;
       
-      // Process photo if one was selected
       if (newWeightPhotoUri) {
         try {
           // Compress the image for optimal storage
@@ -711,7 +711,6 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
           // Save photo using standalone service with fallbacks
           try {
             let photoId: string | null = null;
-            let photoUri: string | null = null;
             
             try {
               photoId = await StandalonePhotoService.uploadPhoto(
@@ -776,7 +775,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
         clientData.id,
         weight,
         newWeightNotes.trim() || undefined,
-        photoUri, // Use the photoUri (either from SimpleImgBB or retrieved from services)
+        photoUri || undefined, // Only save photoUri if it's not empty/null
         newWeightDate
       );
       
