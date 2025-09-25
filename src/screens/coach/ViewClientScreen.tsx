@@ -140,15 +140,39 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       // Load weight entries
       const weightData = await FirestoreService.getWeightEntries(clientData.id);
       
-      // Convert base64 photos to displayable URIs
+      // Process weight entries with photos
       const weightDataWithPhotos = await Promise.all(
         weightData.map(async (entry: any) => {
+          // If entry already has photoUri, use it
+          if (entry.photoUri && entry.photoUri.trim()) {
+            console.log('Weight entry already has photoUri:', entry.photoUri);
+            return entry;
+          }
+          
+          // If entry has photoId, try to get the photo
           if (entry.photoId) {
             try {
-              // Use hybrid service to get photo (local or ImgBB)
-              const photoUri = await HybridLocalImgBBService.getPhoto(entry.photoId);
+              let photoUri: string | null = null;
+              
+              // Try standalone service first
+              try {
+                photoUri = await StandalonePhotoService.getPhoto(entry.photoId);
+              } catch (standaloneError) {
+                console.warn('Standalone photo retrieval failed:', standaloneError);
+                
+                // Fallback to hybrid service
+                try {
+                  photoUri = await HybridLocalImgBBService.getPhoto(entry.photoId);
+                } catch (hybridError) {
+                  console.warn('Hybrid photo retrieval failed:', hybridError);
+                }
+              }
+              
               if (photoUri) {
                 entry.photoUri = photoUri;
+                console.log('Photo loaded for weight entry:', entry.photoId);
+              } else {
+                console.log('No photo found for weight entry:', entry.photoId);
               }
             } catch (error) {
               console.error('Error loading photo for weight entry:', error);
@@ -163,13 +187,39 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       // Load progress photos
       const photosData = await FirestoreService.getProgressPhotos(clientData.id);
       
-      // Convert base64 photos to displayable URIs
+      // Process progress photos with proper photo services
       const photosDataWithPhotos = await Promise.all(
         photosData.map(async (photo: any) => {
-          if (photo.base64Data) {
-            photo.photoUri = `data:image/jpeg;base64,${photo.base64Data}`;
+          try {
+            let photoUri: string | null = null;
+            
+            // If photo already has uri, use it
+            if (photo.uri && photo.uri.trim()) {
+              photoUri = photo.uri;
+            } else if (photo.base64Data) {
+              // Legacy base64 support
+              photoUri = `data:image/jpeg;base64,${photo.base64Data}`;
+            } else {
+              // Try standalone service first
+              try {
+                photoUri = await StandalonePhotoService.getPhoto(photo.id);
+              } catch (standaloneError) {
+                console.warn('Standalone progress photo retrieval failed:', standaloneError);
+                
+                // Fallback to hybrid service
+                try {
+                  photoUri = await HybridLocalImgBBService.getPhoto(photo.id);
+                } catch (hybridError) {
+                  console.warn('Hybrid progress photo retrieval failed:', hybridError);
+                }
+              }
+            }
+            
+            return { ...photo, uri: photoUri };
+          } catch (error) {
+            console.error('Error loading progress photo:', error);
+            return { ...photo, uri: null };
           }
-          return photo;
         })
       );
       
@@ -312,6 +362,110 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
     }
   };
 
+  // Profile photo handlers
+  const handleTakeProfilePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        if (result.assets && result.assets[0]) {
+          await handleProfilePhotoUpload(result.assets[0].uri);
+        } else if (result.uri) {
+          await handleProfilePhotoUpload(result.uri);
+        }
+      }
+    } catch (error) {
+      console.error('Error taking profile photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handleSelectProfilePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        if (result.assets && result.assets[0]) {
+          await handleProfilePhotoUpload(result.assets[0].uri);
+        } else if (result.uri) {
+          await handleProfilePhotoUpload(result.uri);
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting profile photo:', error);
+      Alert.alert('Error', 'Failed to select photo');
+    }
+  };
+
+  const handleProfilePhotoUpload = async (uri: string) => {
+    try {
+      setLoading(true);
+      
+      // Compress the image
+      const compressedUri = await compressImage(uri);
+      
+      // Upload profile photo using standalone service
+      let displayUri: string | null = null;
+      
+      try {
+        displayUri = await StandalonePhotoService.uploadPhoto(
+          compressedUri,
+          clientData.id,
+          'client'
+        );
+        console.log('Profile photo upload successful');
+      } catch (uploadError) {
+        console.warn('Standalone upload failed, trying hybrid:', uploadError);
+        
+        try {
+          const photoId = await HybridLocalImgBBService.uploadPhoto(
+            compressedUri,
+            clientData.id,
+            'client'
+          );
+          
+          displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+        } catch (hybridError) {
+          console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
+          
+          displayUri = await SimpleImgBBService.uploadPhoto(
+            compressedUri,
+            clientData.id,
+            'client'
+          );
+        }
+      }
+      
+      if (displayUri) {
+        // Update client's photoUri in database
+        await FirestoreService.updateClient(clientData.id, {
+          photoUri: displayUri
+        });
+        
+        // Update local state
+        await loadClientData();
+        
+        Alert.alert('Success', 'Profile photo updated successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to upload profile photo');
+      }
+    } catch (error) {
+      console.error('Error uploading profile photo:', error);
+      Alert.alert('Error', 'Failed to upload profile photo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const processAndUploadPhoto = async (uri: string, date: Date, notes?: string) => {
     try {
       setLoading(true);
@@ -319,29 +473,57 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       // Compress the image
       const compressedUri = await compressImage(uri);
       
-      // Save photo using hybrid service (local + ImgBB)
-      const photoId = await HybridLocalImgBBService.uploadPhoto(
-        compressedUri,
-        clientData.id,
-        'progress',
-        notes
-      );
+      // Save photo using standalone service with fallbacks
+      let displayUri: string | null = null;
       
-      // Get the display URI (local or ImgBB)
-      const displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+      try {
+        displayUri = await StandalonePhotoService.uploadPhoto(
+          compressedUri,
+          clientData.id,
+          'progress',
+          notes
+        );
+        console.log('Standalone progress photo upload successful');
+      } catch (standaloneError) {
+        console.warn('Standalone upload failed, trying hybrid:', standaloneError);
+        
+        try {
+          const photoId = await HybridLocalImgBBService.uploadPhoto(
+            compressedUri,
+            clientData.id,
+            'progress',
+            notes
+          );
+          
+          displayUri = await HybridLocalImgBBService.getPhoto(photoId);
+        } catch (hybridError) {
+          console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
+          
+          displayUri = await SimpleImgBBService.uploadPhoto(
+            compressedUri,
+            clientData.id,
+            'progress',
+            notes
+          );
+        }
+      }
       
-      // Add progress photo to database with display URI
-      await FirestoreService.addProgressPhoto(
-        clientData.id,
-        displayUri,
-        notes,
-        date
-      );
-      
-      // Reload data
-      await loadClientData();
-      
-      Alert.alert('Success', 'Progress photo uploaded successfully!');
+      if (displayUri) {
+        // Add progress photo to database with display URI
+        await FirestoreService.addProgressPhoto(
+          clientData.id,
+          displayUri,
+          notes,
+          date
+        );
+        
+        // Reload data
+        await loadClientData();
+        
+        Alert.alert('Success', 'Progress photo uploaded successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to upload progress photo');
+      }
     } catch (error) {
       console.error('Error uploading photo:', error);
       Alert.alert('Error', 'Failed to upload photo');
@@ -524,18 +706,47 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
           const compressedUri = await compressImage(newWeightPhotoUri);
           console.log('Image compressed successfully:', compressedUri);
           
-          // Save photo using hybrid service (local + ImgBB)
+          // Save photo using standalone service with fallbacks
           try {
-            const photoId = await HybridLocalImgBBService.uploadPhoto(
-              compressedUri,
-              clientData.id,
-              'weight',
-              newWeightNotes.trim() || undefined
-            );
+            let photoUri: string | null = null;
             
-            // Get the display URI (local or ImgBB)
-            photoUri = await HybridLocalImgBBService.getPhoto(photoId);
-            console.log('Photo saved successfully:', photoId);
+            try {
+              photoUri = await StandalonePhotoService.uploadPhoto(
+                compressedUri,
+                clientData.id,
+                'weight',
+                newWeightNotes.trim() || undefined
+              );
+              console.log('Standalone photo upload successful');
+            } catch (standaloneError) {
+              console.warn('Standalone upload failed, trying hybrid:', standaloneError);
+              
+              try {
+                const photoId = await HybridLocalImgBBService.uploadPhoto(
+                  compressedUri,
+                  clientData.id,
+                  'weight',
+                  newWeightNotes.trim() || undefined
+                );
+                
+                photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+              } catch (hybridError) {
+                console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
+                
+                photoUri = await SimpleImgBBService.uploadPhoto(
+                  compressedUri,
+                  clientData.id,
+                  'weight',
+                  newWeightNotes.trim() || undefined
+                );
+              }
+            }
+            
+            if (photoUri) {
+              console.log('Photo saved successfully with URI:', photoUri);
+            } else {
+              throw new Error('All photo upload methods failed');
+            }
             
           } catch (photoError) {
             console.error('Photo storage failed:', photoError);
@@ -636,10 +847,10 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
             onPress={() => {
               Alert.alert(
                 'Update Client Photo',
-                'Choose how you want to add a photo',
+                'Choose how you want to add a profile photo',
                 [
-                  { text: 'Take Photo', onPress: handleTakePhoto },
-                  { text: 'Choose from Library', onPress: handleSelectPhoto },
+                  { text: 'Take Photo', onPress: handleTakeProfilePhoto },
+                  { text: 'Choose from Library', onPress: handleSelectProfilePhoto },
                   { text: 'Cancel', style: 'cancel' }
                 ]
               );
