@@ -721,6 +721,10 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
                 newWeightNotes.trim() || undefined
               );
               console.log('Standalone photo upload successful, photoId:', photoId);
+              
+              // Get the photoUri from the service
+              photoUri = await StandalonePhotoService.getPhoto(photoId);
+              console.log('Retrieved photoUri from StandalonePhotoService:', photoUri);
             } catch (standaloneError) {
               console.warn('Standalone upload failed, trying hybrid:', standaloneError);
               
@@ -751,27 +755,10 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
               }
             }
             
-            if (photoId || photoUri) {
-              console.log('Photo saved successfully:', { photoId, photoUri });
-              
-              // If we have photoId but no photoUri, get the photoUri from the service
-              if (photoId && !photoUri) {
-                try {
-                  // Try to get photoUri from the service that uploaded it
-                  if (photoId.includes('photo_')) {
-                    // Standalone service photoId format
-                    photoUri = await StandalonePhotoService.getPhoto(photoId);
-                  } else {
-                    // Hybrid service photoId format
-                    photoUri = await HybridLocalImgBBService.getPhoto(photoId);
-                  }
-                  console.log('Retrieved photoUri from service:', photoUri);
-                } catch (error) {
-                  console.warn('Failed to get photoUri from service:', error);
-                }
-              }
+            if (photoUri) {
+              console.log('Photo saved successfully with photoUri:', photoUri);
             } else {
-              throw new Error('All photo upload methods failed');
+              throw new Error('All photo upload methods failed - no photoUri obtained');
             }
             
           } catch (photoError) {

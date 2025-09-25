@@ -65,8 +65,8 @@ export class StandalonePhotoService {
       
       console.log('Photo upload completed:', photoRecord.id);
       
-      // Return ImgBB URL if available, otherwise local URI
-      return imgbbUrl || localUri;
+      // Return the photoId so we can retrieve the photo later
+      return photoRecord.id;
     } catch (error) {
       console.error('Error in standalone photo upload:', error);
       throw new Error(`Failed to upload photo: ${error.message}`);
