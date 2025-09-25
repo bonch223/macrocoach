@@ -701,6 +701,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       
       // Handle photo upload if a new one is selected
       let photoUri: string | undefined = undefined;
+      let photoId: string | undefined = undefined;
       
       if (newWeightPhotoUri) {
         try {
@@ -710,7 +711,6 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
           
           // Save photo using standalone service with fallbacks
           try {
-            let photoId: string | null = null;
             
             try {
               photoId = await StandalonePhotoService.uploadPhoto(
@@ -721,7 +721,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
               );
               console.log('Standalone photo upload successful, photoId:', photoId);
               
-              // Get the photoUri from the service
+              // Get the photoUri from the service (for local device)
               photoUri = await StandalonePhotoService.getPhoto(photoId);
               console.log('Retrieved photoUri from StandalonePhotoService:', photoUri);
             } catch (standaloneError) {
@@ -735,10 +735,14 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
                   newWeightNotes.trim() || undefined
                 );
                 console.log('Hybrid photo upload successful, photoId:', photoId);
+                
+                // Get the photoUri from the service (for local device)
+                photoUri = await HybridLocalImgBBService.getPhoto(photoId);
+                console.log('Retrieved photoUri from HybridLocalImgBBService:', photoUri);
               } catch (hybridError) {
                 console.warn('Hybrid upload failed, trying simple ImgBB:', hybridError);
                 
-                // For SimpleImgBBService, we get the URI directly
+                // For SimpleImgBBService, we get the URI directly (no photoId)
                 photoUri = await SimpleImgBBService.uploadPhoto(
                   compressedUri,
                   clientData.id,
@@ -748,6 +752,8 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
                 
                 if (photoUri) {
                   console.log('SimpleImgBB photo upload successful, URI:', photoUri);
+                  // SimpleImgBB doesn't return photoId, so we'll save the URI directly
+                  photoId = undefined;
                 } else {
                   throw new Error('SimpleImgBB upload failed');
                 }
@@ -771,11 +777,12 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       }
       
       // Save to database with selected date and photo
+      // Save photoId if available (for cross-device access), otherwise save photoUri directly
       await FirestoreService.addWeightEntry(
         clientData.id,
         weight,
         newWeightNotes.trim() || undefined,
-        photoUri || undefined, // Only save photoUri if it's not empty/null
+        photoId || photoUri || undefined, // Save photoId for cross-device access, fallback to photoUri
         newWeightDate
       );
       
@@ -1465,7 +1472,7 @@ export const ViewClientScreen: React.FC<ViewClientScreenProps> = ({
       .filter(entry => entry.photoUri || entry.photoId) // Support both photoUri and photoId
       .map(entry => ({ 
         id: entry.id, 
-        photoUri: entry.photoUri, // This will be set by the loadClientData function
+        photoUri: entry.photoUri || entry.photoId, // Use photoUri if available, otherwise photoId (which will be handled by services)
         date: entry.date, 
         weight: entry.weight,
         notes: entry.notes
